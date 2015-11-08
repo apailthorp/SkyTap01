@@ -209,7 +209,6 @@ commandtable = {'list': None,
                 'restart': {'runmulti': False, 'acceptrunstates': ['running'], 'newrunstate': 'restarted', 'finalrunstate': 'running'}
                 }
 
-
 def setupArgParser():
     # Set up to handle arguments, provide help
     runHelp = """
@@ -243,7 +242,7 @@ def main():
 
     # Validate command
     lcCommand = str.lower(args.command)
-    if lcCommand not in ['list', 'start', 'suspend', 'resume', 'stop', 'halt', 'restart']:
+    if lcCommand not in [commandtable.keys()]:
         sys.exit("Unknown command\n")
 
     # if a list of environments is not passed in, get a list of all environments
