@@ -49,7 +49,7 @@ def getEnvs(args):
 
 
 def getEnv(args, envID):
-    someEnvEnd = envEnd + '/' + envID
+    someEnvEnd = envEnd + '/' + envID + '.json'
     env = authGetJson(args, someEnvEnd)
     if type(env) == str:
         reportMessage(env)
@@ -64,7 +64,7 @@ def getEnvVMs(args, env):
 
 
 def getVM(args, vm):
-    someVMEnd = vmEnd + '/' + vm
+    someVMEnd = vmEnd + '/' + vm + '.json'
     someVM = authGetJson(args, someVMEnd)
     if type(someVM) == str:
         reportMessage(someVM)
@@ -77,7 +77,7 @@ def setVMRunstate(args, vmID, runstate):
     reportVMRunstateChange(someVM, runstate)
     currentRunstate = someVM['runstate']
     if currentRunstate != runstate:
-        someVMEnd = vmEnd + '/' + vmID
+        someVMEnd = vmEnd + '/' + vmID + '.json'
         runStateJson = json.dumps({'runstate': runstate})
         someVM = authPutJson(args, someVMEnd, runStateJson)
         if type(someVM) == str:
@@ -117,6 +117,59 @@ def setVMListRunstate(args, vms, newRunstate, endRunstate=None):
         sleepPollVMRunstate(args, someVMID, endRunstate)
 
 
+def setVMMultiListRunstate(args, envID, vms, newRunstate, endRunstate=None):
+    if endRunstate == None:
+        endRunstate = newRunstate
+    vmIDList = []
+    for someVM in vms:
+        someVMID = someVM['id']
+        vmIDList.append(someVMID)
+    multiBody = json.dumps({'multiselect': vmIDList, 'runstate': newRunstate})
+    someEnvEnd = envEnd + '/' + envID + '.json'
+    someVM = authPutJson(args, someEnvEnd, multiBody)
+    if type(someVM) == str:
+        reportMessage(someVM)
+        sys.exit(1)
+    retryvms = sleepPollVMListRunstate(args, envID, vms, endRunstate)
+    if retryvms != None:
+        reportMessage('ERROR: Not all VMs set as requested in multirequest, trying single requests')
+        setVMListRunstate(args, vms, newRunstate, endRunstate)
+
+
+def sleepPollVMListRunstate(args, envID, vms, runstate):
+    someEnv = getEnv(args, envID)
+    vmListCount = len(vms)
+    pollCount = 0
+    busyseenvms = []
+    failedvms = []
+    completeCount = 0
+    # break out of loop if poll limit reached, current runstate become runstate,
+    # or runstate becomes busy then  transitions to new state
+    while pollCount < pollLimit and completeCount < vmListCount:
+        time.sleep(pollInterval)
+        someEnv = getEnv(args, envID)
+        pollCount += 1
+        allVMs = someEnv['vms']
+        reportVMs(allVMs)
+        vmsIDs = []
+        for someVM in vms:
+            vmsIDs.append(someVM['id'])
+        for someVM in allVMs:
+            someVMId = someVM['id']
+            if someVMId in vmsIDs:
+                someVmRunstate = someVM['runstate']
+                if someVmRunstate == runstate or (someVMId in busyseenvms and someVmRunstate != 'busy'):
+                    completeCount += 1
+                    if someVmRunstate != runstate:
+                        failedvms.append(someVMId)
+                    if someVMId in busyseenvms:
+                        busyseenvms.remove(someVMId)
+                if someVmRunstate == 'busy' and (someVMId not in busyseenvms):
+                    busyseenvms.append(someVMId)
+    if len(failedvms) > 0:
+        return failedvms
+
+
 def reportMessage(message):
     print message
 
@@ -147,6 +200,16 @@ def reportVMRunstateChange(vm, runstate):
     reportVM(vm)
 
 
+commandtable = {'list': None,
+                'start': {'runmulti': True, 'acceptrunstates': ['stopped'], 'newrunstate': 'running', 'finalrunstate': 'running'},
+                'suspend': {'runmulti': True, 'acceptrunstates': ['running'], 'newrunstate': 'suspended', 'finalrunstate': 'suspended'},
+                'resume': {'runmulti': True, 'acceptrunstates': ['suspended'], 'newrunstate': 'running', 'finalrunstate': 'running'},
+                'stop': {'runmulti': True, 'acceptrunstates': ['running'], 'newrunstate': 'stopped', 'finalrunstate': 'stopped'},
+                'halt': {'runmulti': True, 'acceptrunstates': ['suspended', 'running'], 'newrunstate': 'halted', 'finalrunstate': 'stopped'},
+                'restart': {'runmulti': False, 'acceptrunstates': ['running'], 'newrunstate': 'restarted', 'finalrunstate': 'running'}
+                }
+
+
 def setupArgParser():
     # Set up to handle arguments, provide help
     runHelp = """
@@ -165,8 +228,9 @@ def setupArgParser():
     parser.add_argument('-e', '--environment', nargs='*', dest='envs', type=int,
                         help='The environment ID(s) to operate against')
     # optional, default is list
+    commandlist = ', '.join(sorted(commandtable.keys()))
     parser.add_argument('-c', '--command', nargs='?', dest='command', type=str,
-                        help='Commands are: list, start, suspend, resume, stop, halt', default='list')
+                        help='Commands are: '+ commandlist, default='list')
     # workaround for problem with help from argparse
     parser._optionals.title = 'flag arguments'
     return parser
@@ -179,7 +243,7 @@ def main():
 
     # Validate command
     lcCommand = str.lower(args.command)
-    if lcCommand not in ['list', 'start', 'suspend', 'resume', 'stop', 'halt']:
+    if lcCommand not in ['list', 'start', 'suspend', 'resume', 'stop', 'halt', 'restart']:
         sys.exit("Unknown command\n")
 
     # if a list of environments is not passed in, get a list of all environments
@@ -201,42 +265,26 @@ def main():
         allVMs = someEnv['vms']
         reportVMs(allVMs)
         vmsForRunChange = []
-        for someVM in allVMs:
-            # Get the currents state of the VM
-            vmRunstate = someVM['runstate']
-            # Handle commands
-            targetVMRunstate = None
-            if lcCommand == 'start':
-                newVMRunstate = 'running'
-                if vmRunstate == 'stopped':
+        commandmap = commandtable[lcCommand]
+        if commandmap != None:
+            newVMRunstate = commandmap['newrunstate']
+            targetVMRunstate = commandmap['finalrunstate']
+            acceptRunstates = commandmap['acceptrunstates']
+            runmult = commandmap['runmulti']
+            for someVM in allVMs:
+                # Get the currents state of the VM
+                vmRunstate = someVM['runstate']
+                # Handle commands
+                if vmRunstate in  acceptRunstates:
                     vmsForRunChange.append(someVM)
-            if lcCommand == 'suspend':
-                newVMRunstate = 'suspended'
-                if vmRunstate == 'running':
-                    vmsForRunChange.append(someVM)
-            if lcCommand == 'resume':
-                newVMRunstate = 'running'
-                if vmRunstate == 'suspended':
-                    vmsForRunChange.append(someVM)
-            if lcCommand == 'stop':
-                newVMRunstate = 'stopped'
-                if vmRunstate == 'running':
-                    vmsForRunChange.append(someVM)
-            if lcCommand == 'halt':
-                newVMRunstate = 'halted'
-                targetVMRunstate = 'stopped'
-                if vmRunstate in ['running', 'suspended']:
-                    vmsForRunChange.append(someVM)
-            if lcCommand == 'restart':
-                newVMRunstate = 'restarted'
-                targetVMRunstate = 'running'
-                if vmRunstate == 'running':
-                    vmsForRunChange.append(someVM)
-        if len(vmsForRunChange) > 0:
-            setVMListRunstate(args, vmsForRunChange, newVMRunstate, targetVMRunstate)
-            for someVM in vmsForRunChange:
-                refreshVM = getVM(args, someVM['id'])
-                reportVM(refreshVM)
+            if len(vmsForRunChange) > 0:
+                if runmult:
+                    setVMMultiListRunstate(args, someEnvId, vmsForRunChange, newVMRunstate, targetVMRunstate)
+                else:
+                    setVMListRunstate(args, vmsForRunChange, newVMRunstate, targetVMRunstate)
+                for someVM in vmsForRunChange:
+                    refreshVM = getVM(args, someVM['id'])
+                    reportVM(refreshVM)
 
 
 if __name__ == '__main__':
