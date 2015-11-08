@@ -20,7 +20,7 @@ def authGetJson(args, url):
     try:
         r = requests.get(url, auth=requests.auth.HTTPBasicAuth(args.username, args.token), headers=headers)
         if r.status_code in [401, 404, 409, 422, 423, 429, 500]:
-            return 'Status {0}: {1}'.format(r.status_code, r.text)
+            return 'Status {0}: {1}'.format(r.status_code, r.json())
         if (r.status_code // 100 == 2):
             return r.json()
     except requests.exceptions.RequestException as e:
@@ -28,12 +28,12 @@ def authGetJson(args, url):
 
 
 def authPutJson(args, url, jsonbody):
-    headers = {'Content-Type': 'application/json'}
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
     try:
         r = requests.put(url, auth=requests.auth.HTTPBasicAuth(args.username, args.token), headers=headers,
                          data=jsonbody)
         if r.status_code in [401, 404, 409, 422, 423, 429, 500]:
-            return 'Status {0}: {1}'.format(r.status_code, r.text)
+            return 'Status {0}: {1}'.format(r.status_code, r.json())
         if (r.status_code // 100 == 2):
             return r
     except requests.exceptions.RequestException as e:
