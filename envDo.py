@@ -112,7 +112,6 @@ def setVMListRunstate(args, vms, newRunstate, endRunstate=None):
         endRunstate = newRunstate
     for someVM in vms:
         someVMID = someVM['id']
-        # it would be nice to run more than one of these at a time, but response 423 happens
         setVMRunstate(args, someVMID, newRunstate)
         sleepPollVMRunstate(args, someVMID, endRunstate)
 
@@ -206,7 +205,8 @@ commandtable = {'list': None,
                 'resume': {'runmulti': True, 'acceptrunstates': ['suspended'], 'newrunstate': 'running', 'finalrunstate': 'running'},
                 'stop': {'runmulti': True, 'acceptrunstates': ['running'], 'newrunstate': 'stopped', 'finalrunstate': 'stopped'},
                 'halt': {'runmulti': True, 'acceptrunstates': ['suspended', 'running'], 'newrunstate': 'halted', 'finalrunstate': 'stopped'},
-                'restart': {'runmulti': False, 'acceptrunstates': ['running'], 'newrunstate': 'restarted', 'finalrunstate': 'running'}
+                'resumeall': {'runmulti': True, 'acceptrunstates': ['stopped','suspended'], 'newrunstate': 'running', 'finalrunstate': 'running'},
+                'restart': {'runmulti': False, 'acceptrunstates': ['running'], 'newrunstate': 'restarted', 'finalrunstate': 'running'},
                 }
 
 def setupArgParser():
@@ -216,6 +216,15 @@ def setupArgParser():
     Example call:
         python envDo.py -u myUserName -t myAPISecurityToken
     Check the My Account tab to find a current API Security Token value.
+    Commands are executed first multi, then per VM for any failures:
+        list - show all VMs
+        start - start to running any stopped VMs
+        suspend - suspend to suspended any running VMs
+        resume - resume to running any suspended VMs
+        stop - stop to stopped any running VMs
+        halt - halt to stopped any running or suspended VMs
+        resumeall - resume or start to running any stopped or suspended VMs
+        restart - (BETA, single running only) restart to running any running VMs (not working)
     """
     parser = argparse.ArgumentParser(description=runHelp, formatter_class=argparse.RawTextHelpFormatter)
     # required
@@ -242,7 +251,7 @@ def main():
 
     # Validate command
     lcCommand = str.lower(args.command)
-    if lcCommand not in [commandtable.keys()]:
+    if lcCommand not in commandtable.keys():
         sys.exit("Unknown command\n")
 
     # if a list of environments is not passed in, get a list of all environments
