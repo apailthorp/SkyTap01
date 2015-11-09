@@ -49,7 +49,7 @@ def getEnvs(args):
 
 
 def getEnv(args, envID):
-    someEnvEnd = envEnd + '/' + envID + '.json'
+    someEnvEnd = '{0}/{1}.json'.format(envEnd, envID)
     env = authGetJson(args, someEnvEnd)
     if type(env) == str:
         reportMessage(env)
@@ -64,7 +64,7 @@ def getEnvVMs(args, env):
 
 
 def getVM(args, vm):
-    someVMEnd = vmEnd + '/' + vm + '.json'
+    someVMEnd = '{0}/{1}.json'.format(vmEnd, vm)
     someVM = authGetJson(args, someVMEnd)
     if type(someVM) == str:
         reportMessage(someVM)
@@ -77,7 +77,7 @@ def setVMRunstate(args, vmID, runstate):
     reportVMRunstateChange(someVM, runstate)
     currentRunstate = someVM['runstate']
     if currentRunstate != runstate:
-        someVMEnd = vmEnd + '/' + vmID + '.json'
+        someVMEnd = '{0}/{1}.json'.format(vmEnd, vmID)
         runStateJson = json.dumps({'runstate': runstate})
         someVM = authPutJson(args, someVMEnd, runStateJson)
         if type(someVM) == str:
@@ -124,7 +124,7 @@ def setVMMultiListRunstate(args, envID, vms, newRunstate, endRunstate=None):
         someVMID = someVM['id']
         vmIDList.append(someVMID)
     multiBody = json.dumps({'multiselect': vmIDList, 'runstate': newRunstate})
-    someEnvEnd = envEnd + '/' + envID + '.json'
+    someEnvEnd = '{0}/{1}.json'.format(envEnd, envID)
     someVM = authPutJson(args, someEnvEnd, multiBody)
     if type(someVM) == str:
         reportMessage(someVM)
@@ -218,7 +218,7 @@ def setupArgParser():
         python envDo.py -u myUserName -t myAPISecurityToken
     Check the My Account tab to find a current API Security Token value.
     Commands are executed first multi, then per VM for any failures:
-        list - show all VMs
+        list - show all VMs (default command)
         start - start to running any stopped VMs
         suspend - suspend to suspended any running VMs
         resume - resume to running any suspended VMs
