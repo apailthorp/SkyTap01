@@ -207,7 +207,7 @@ commandtable = {'list': None,
                 'stop': {'runmulti': True, 'acceptrunstates': ['running'], 'newrunstate': 'stopped', 'finalrunstate': 'stopped'},
                 'halt': {'runmulti': True, 'acceptrunstates': ['suspended', 'running'], 'newrunstate': 'halted', 'finalrunstate': 'stopped'},
                 'resumeall': {'runmulti': True, 'acceptrunstates': ['stopped','suspended'], 'newrunstate': 'running', 'finalrunstate': 'running'},
-                'restart': {'runmulti': False, 'acceptrunstates': ['running'], 'newrunstate': 'restarted', 'finalrunstate': 'running'},
+#                'restart': {'runmulti': False, 'acceptrunstates': ['running'], 'newrunstate': 'restarted', 'finalrunstate': 'running'},
                 }
 
 def setupArgParser():
@@ -225,8 +225,8 @@ def setupArgParser():
         stop - stop to stopped any running VMs
         halt - halt to stopped any running or suspended VMs
         resumeall - resume or start to running any stopped or suspended VMs
-        restart - (BETA, single running only) restart to running any running VMs (not working)
     """
+    #   restart - (BETA, single running only) restart to running any running VMs (not working)
     parser = argparse.ArgumentParser(description=runHelp, formatter_class=argparse.RawTextHelpFormatter)
     # required
     parser.add_argument('-u', '--username', nargs='?', dest='username', type=str,
