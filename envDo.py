@@ -176,7 +176,8 @@ def reportMessage(message):
 def reportEnv(env):
     envID = env['id']
     someEnvName = env['name']
-    print envID + " - " + someEnvName + ":"
+    someEnvRunstate = env['runstate']
+    print "{0} - {1} {2:>15s}".format(envID, someEnvName, someEnvRunstate)
 
 
 def reportVM(vm):
